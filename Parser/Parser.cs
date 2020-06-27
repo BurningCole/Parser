@@ -11,23 +11,47 @@ namespace Parser
 {
 	class Parser
 	{
-		
+		//the file to read from
 		private string inputFile = "";
 		private SqlConnection connection;
 
+		//years to count between, set in file header
 		private int minYear = 2000;
 		private int maxYear = 2000;
 
-		private string table = "test_table";
+		//default database table is set in config file
+		private string table = ConfigurationManager.AppSettings["DefaultTable"];
+
+		//wether to print non-error messages
+		public static bool consolePrint = true;
+
+		//when this is set it replaces the connection string defined in the config file
+		public static string connectionString = null;
 
 		//create a parser for a specific file
 		public Parser(string inputFile)
 		{
 			
 			this.inputFile = inputFile;
-			this.connection = new SqlConnection(ConfigurationManager.AppSettings["ConnectionArgument"]);
+			this.connection = new SqlConnection(
+				connectionString ?? ConfigurationManager.AppSettings["ConnectionArgument"]
+			);
 		}
 
+
+		//changes database connection string to new string
+		public void ChangeDBConfig(string configString)
+		{
+			connection.ConnectionString = configString;
+			connectionString = configString;
+		}
+
+		//change database table to put parsed results in
+		public void setTable(string table) {
+			this.table=table;
+		}
+
+		//start parsing the file
 		public void StartParsing()
 		{
 			StreamReader stream = new StreamReader(inputFile);
@@ -40,12 +64,12 @@ namespace Parser
 
 				while (ReadBlock(stream))
 				{
-					Console.WriteLine("Block added");
+					WriteLine("Block added");
 				}
 			}
 			catch(SqlException e)
 			{
-				Console.WriteLine("Error occurred: "+e.Message);
+				Console.WriteLine("Database Error occurred: "+e.Message);
 			}
 			finally
 			{
@@ -79,11 +103,11 @@ namespace Parser
 						{
 							minYear = int.Parse(yearBounds[0]);
 							maxYear = int.Parse(yearBounds[1]);
-							Console.WriteLine("Year bounds set: {0} to {1}", minYear, maxYear);
+							WriteLine("Year bounds set: {0} to {1}", minYear, maxYear);
 						}
 						catch (FormatException)
 						{
-							Console.WriteLine("Years formatted incorrectly.");
+							WriteLine("Years \"{0}\" formatted incorrectly.",configuration[1]);
 						}
 
 					}
@@ -130,11 +154,11 @@ namespace Parser
 				//set grid ref data
 				gridRef[0] = int.Parse(gridRefStr[0].Trim());
 				gridRef[1] = int.Parse(gridRefStr[1].Trim());
-				Console.WriteLine("Grid Block: {0} to {1}", gridRef[0], gridRef[1]);
+				WriteLine("Grid Block: {0} to {1}", gridRef[0], gridRef[1]);
 			}
 			catch (FormatException)
 			{
-				Console.WriteLine("Grid-ref formatted incorrectly. {0}",mergedGridRef);
+				WriteLine("Grid-ref formatted incorrectly. {0}",mergedGridRef);
 				return true;
 			}
 
@@ -152,7 +176,7 @@ namespace Parser
 			{
 				if (stream.Peek() == 'G')
 				{
-					Console.WriteLine("Block missing years {0} to {1}", year, maxYear);
+					WriteLine("Block missing years {0} to {1}", year, maxYear);
 					break;
 				}
 				line = stream.ReadLine();
@@ -164,8 +188,9 @@ namespace Parser
 		}
 
 		//take line and calculate yearly data for grid position
-		private static void ReadYear(string line, SqlCommand command, int year)
+		private void ReadYear(string line, SqlCommand command, int year)
 		{
+			//split line into 12 substrings of identical length
 			int valueSize = line.Length / 12;
 			for (int month = 1; month <= 12; month++)
 			{
@@ -180,7 +205,7 @@ namespace Parser
 				}
 				catch (FormatException e)
 				{
-					Console.WriteLine("Value is not an integer");
+					WriteLine("Value \"{0}\" is not an integer", result);
 					continue;
 				}
 			}
@@ -201,6 +226,12 @@ namespace Parser
 					Console.WriteLine("|");
 				}
 			}
+		}
+
+		//print if quiet flag not raised
+		public static void WriteLine(string str, params object[] args)
+		{
+			if (consolePrint) Console.WriteLine(str, args);
 		}
 	}
 }
